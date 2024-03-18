@@ -1,38 +1,12 @@
 use std::fs;
 use std::path::PathBuf;
 
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, Parser};
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
+mod cli;
+use cli::{Cli, Commands};
 
-#[derive(Subcommand)]
-enum Commands {
-    /// performs backup of target directory
-    Backup {
-        /// The target location where the backup will be stored
-        #[arg(short, long)]
-        target: PathBuf,
-
-        /// The directories and files that will be backed up
-        #[arg(value_name = "DIR/FILE")]
-        files: Vec<PathBuf>
-    },
-    /// performs recovery of target backup
-    Restore {
-        /// The target location where the backup is
-        #[arg(short, long)]
-        target: PathBuf,
-
-        /// The directory where the backup will be restored
-        #[arg(value_name = "DIR")]
-        files: Option<PathBuf>
-    },
-}
+mod backup_vault;
 
 fn naive_copy_file(input: &PathBuf, output_dir: &PathBuf) -> std::io::Result<()> {
     // Create the output directory if it doesn't exist
