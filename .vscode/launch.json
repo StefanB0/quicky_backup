@@ -1,0 +1,48 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'quicky_backup'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=quicky_backup",
+          "--package=quicky_backup"
+        ],
+        "filter": {
+          "name": "quicky_backup",
+          "kind": "bin"
+        }
+      },
+      
+      "args": ["restore", "--vault", "temp/vault01/", "temp/vault02"],
+      // "args": ["backup",  "--target",  "temp/vault01", "temp/vault_example/"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'quicky_backup'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=quicky_backup",
+          "--package=quicky_backup"
+        ],
+        "filter": {
+          "name": "quicky_backup",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
