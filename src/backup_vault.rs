@@ -318,7 +318,10 @@ impl BackupVault {
 
         let mut vault_file = vault_file.unwrap();
 
+        let temp_password = self.password.clone();
+        self.password = "".to_string();
         let vault_json_data = serde_json::to_string(&self);
+        self.password = temp_password;
 
         if vault_json_data.is_err() {
             println!("Failed to serialize vault data");
