@@ -39,6 +39,30 @@ pub enum Commands {
         #[arg(value_name = "DIR")]
         target: PathBuf,
     },
+    ListSnapshots {
+        /// The target location where the backup is
+        #[arg(short, long)]
+        vault: PathBuf,
+    },
+    ListSnapshotContents {
+        /// The target location where the backup is
+        #[arg(short, long)]
+        vault: PathBuf,
+
+        /// The id of the snapshot to be listed
+        #[arg(short, long)]
+        snapshot: Option<String>,
+    },
+    DeleteSnapshot {
+        /// The target location where the backup is
+        #[arg(short, long)]
+        vault: PathBuf,
+
+        /// The id of the snapshot to be deleted
+        #[arg(short, long)]
+        snapshot: String,
+    },
+    
 }
 
 impl Cli {
@@ -85,6 +109,64 @@ impl Cli {
                 };
 
                 backup_vault.restore(vault, snapshot, target);
+            },
+            Some(Commands::ListSnapshots { vault }) => {
+                let password = ask_for_password();
+
+                let backup_vault = match BackupVault::open(vault, &password) {
+                    Ok(vault) => vault,
+                    Err(BackupError::VaultWrongPassword) => {
+                        println!("Wrong password");
+                        std::process::exit(1);
+                    },
+                    Err(_) => {
+                        println!("Failed to open vault");
+                        std::process::exit(1);
+                    }
+                };
+
+                backup_vault.list_snapshots();
+            },
+            Some(Commands::DeleteSnapshot { vault, snapshot }) => {
+                let password = ask_for_password();
+
+                let mut backup_vault = match BackupVault::open(vault, &password) {
+                    Ok(vault) => vault,
+                    Err(BackupError::VaultWrongPassword) => {
+                        println!("Wrong password");
+                        std::process::exit(1);
+                    },
+                    Err(_) => {
+                        println!("Failed to open vault");
+                        std::process::exit(1);
+                    }
+                };
+
+                backup_vault.delete_snapshot(snapshot);
+            },
+            Some(Commands::ListSnapshotContents { vault, snapshot }) => {
+                let password = ask_for_password();
+
+                let backup_vault = match BackupVault::open(vault, &password) {
+                    Ok(vault) => vault,
+                    Err(BackupError::VaultWrongPassword) => {
+                        println!("Wrong password");
+                        std::process::exit(1);
+                    },
+                    Err(_) => {
+                        println!("Failed to open vault");
+                        std::process::exit(1);
+                    }
+                };
+
+                match snapshot {
+                    Some(snapshot) => {
+                        backup_vault.list_snapshot_contents(snapshot);
+                    },
+                    None => {
+                        backup_vault.list_snapshot_contents(&backup_vault.snapshots.last().unwrap().snapshot_id);
+                    }                    
+                }
             },
             None => {
                 Cli::command().print_help().unwrap();

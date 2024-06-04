@@ -6,8 +6,14 @@ use std::path::PathBuf;
 use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use chrono::{DateTime, Utc};
+
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
+
+use rayon::prelude::*;
+
+use crate::crypto::*;
 
 const BUF_SIZE: usize = 4*1024*1024;
 
@@ -49,15 +55,17 @@ pub struct BackupVault {
     pub password: String,
     pub snapshots: Vec<Snapshot>,
     pub files: Vec<VaultFile>,
+    pub crypto: CryptoModule,
 }
 
 impl BackupVault {
     pub fn new(vault_path: PathBuf, password: String) -> Self {
         Self {
             vault_path,
-            password,
+            password: password.clone(),
             snapshots: vec![],
             files: vec![],
+            crypto: CryptoModule::new(password.as_bytes()),
         }
     }
 
@@ -167,11 +175,12 @@ impl BackupVault {
             password: password.clone(),
             snapshots: vault.snapshots,
             files: vault.files,
+            crypto: CryptoModule::import(password.as_bytes(), vault.crypto.export()),
         })
     }
 
     fn vault_copy_file(&mut self, file: &mut VaultFile) -> Result<(), BackupError> {
-        println!("File name {}\nFile hash {}\nFile size {}\n\n", file.file_name, file.file_hash, file.file_size);
+        // println!("File name {}\nFile hash {}\nFile size {}\n\n", file.file_name, file.file_hash, file.file_size);
 
         // // let hash = &file.file_hash;
         // // let vault_file_name = format!("{}{}", hash[0..8].to_string(), hash[hash.len() - 8..hash.len()].to_string());
@@ -216,14 +225,15 @@ impl BackupVault {
 
             let mut vault_file = vault_file.unwrap();
 
-            let write_result = vault_file.write_all(&buffer[..read_result]);
+            let buffer = self.crypto.encrypt(&buffer[..read_result]);
+            let write_result = vault_file.write_all(&buffer);
 
             if write_result.is_err() {
                 println!("Failed to write file: {}", write_file_path.to_str().unwrap());
                 return Err(BackupError::VaultFileCopyError);
             }
 
-            println!("Copied file: {}", write_file_path.to_str().unwrap());
+            // println!("Copied file: {}", write_file_path.to_str().unwrap());
 
             file.vault_paths.push(write_file_path);
         }
@@ -278,7 +288,7 @@ impl BackupVault {
         };
 
 
-        if self.files.is_empty() || !self.files.iter().any(|f| f.file_hash == vault_file.file_hash) {
+        if self.files.is_empty() || !self.files.par_iter().any(|f| f.file_hash == vault_file.file_hash) {
             self.vault_copy_file(&mut vault_file).expect("Failed to copy file")
         }
         
@@ -297,10 +307,11 @@ impl BackupVault {
             snapshot_files: vec![],
         };
 
-        let files_path = files_path.iter().flat_map(expand_file_path).collect::<Vec<PathBuf>>();
+        let files_path = files_path.par_iter().flat_map(expand_file_path).collect::<Vec<PathBuf>>();
 
         let vault_files: Vec<Option<VaultFile>> = files_path.iter().map(|file_path| self.vault_add_file(file_path)).collect();
-        let vault_files: Vec<VaultFile> = vault_files.into_iter().filter_map(|file| file).collect();
+        // let vault_files: Vec<VaultFile> = vault_files.into_iter().filter_map(|file| file).collect();
+        let vault_files: Vec<VaultFile> = vault_files.into_par_iter().filter_map(|file| file).collect();
 
         for vault_file in vault_files {
             snapshot.snapshot_files.push(vault_file);
@@ -346,7 +357,8 @@ impl BackupVault {
         let vault = BackupVault::open(vault, &self.password).expect("Failed to open vault");
 
         let snapshot = match snapshot {
-            Some(snapshot) => vault.snapshots.iter().find(|s| s.snapshot_id == snapshot.clone()).expect("Snapshot not found"),
+            // Some(snapshot) => vault.snapshots.iter().find(|s| s.snapshot_id == snapshot.clone()).expect("Snapshot not found"),
+            Some(snapshot) => vault.snapshots.par_iter().find_any(|s| s.snapshot_id == snapshot.clone()).expect("Snapshot not found"),
             None => vault.snapshots.last().expect("No snapshots found"),
         };
 
@@ -365,10 +377,54 @@ impl BackupVault {
                 let mut vault_file = File::open(vault_path).expect("Failed to open vault file");
                 let mut buffer = Vec::new();
                 vault_file.read_to_end(&mut buffer).expect("Failed to read vault file");
+                let buffer = vault.crypto.decrypt(&buffer).expect("Failed to decrypt file");
                 file.write_all(&buffer).expect("Failed to write file");
             }
         }
 
+    }
+
+    pub fn list_snapshots(&self) {
+        println!("Snapshots list: ");
+
+        for snapshot in &self.snapshots {
+            let time = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(snapshot.snapshot_time.parse::<u64>().unwrap());
+            let time = DateTime::<Utc>::from(time);
+            let id = snapshot.snapshot_id.clone();
+            println!("- {time}: {id}");
+        }
+    }
+
+    pub fn list_snapshot_contents(&self, snapshot_id: &String) {
+        println!("\nListing contents for snapshot {:?}:", snapshot_id);
+
+        let snapshot = self.snapshots.iter().find(|s| s.snapshot_id == *snapshot_id);
+
+        if snapshot.is_none() {
+            println!("Snapshot not found");
+            return;
+        }
+
+        let snapshot = snapshot.unwrap();
+
+        for file in &snapshot.snapshot_files {
+            println!("- {},", file.file_name);
+        }
+    }
+
+    pub fn delete_snapshot(&mut self, snapshot_id: &String) {
+        println!("Deleting snapshot...");
+
+        let snapshot_index = self.snapshots.iter().position(|s| s.snapshot_id == *snapshot_id);
+
+        if snapshot_index.is_none() {
+            println!("Snapshot not found");
+            return;
+        }
+
+        let snapshot_index = snapshot_index.unwrap();
+
+        self.snapshots.remove(snapshot_index);
     }
 
 }

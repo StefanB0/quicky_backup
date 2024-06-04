@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bcrypt = "0.15.1"
 blake3 = "1.5.1"
+chrono = "0.4.38"
 clap = { version = "4.5.3", features = ["derive"] }
 dialog = "0.3.0"
 md5 = "0.7.0"

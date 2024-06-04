@@ -2,6 +2,7 @@
 use clap::Parser;
 
 mod cli;
+mod crypto;
 mod backup_vault;
 
 use cli::Cli;
