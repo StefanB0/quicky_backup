@@ -1,0 +1,19 @@
+cargo run -- --help
+cargo run -- backup --help
+cargo run -- restore --help
+cargo run -- list-snapshots --help
+cargo run -- list-snapshot-contents --help
+!cargo run -- delete-snapshot --help
+
+cargo run -- backup --target temp/vault_en temp/vault_example
+? show vault folder, click around
+cargo run -- restore --vault temp/vault_en temp/vault_de
+? duplicate some files
++cargo run -- backup --target temp/vault_en temp/vault_example
++cargo run -- backup --target temp/vault_en temp/vault_example
+cargo run -- list-snapshots --vault temp/vault_en
+? copy middle snapshot id
+cargo run -- list-snapshot-contents --vault temp/vault_en --snapshot 0711e804-484c-4cb5-b666-b91a5113c19b
+cargo run -- restore --vault temp/vault_en --snapshot 0711e804-484c-4cb5-b666-b91a5113c19b temp/vault_de2
+
+rm -r temp/vault_de temp/vault_de* temp/vault_en
